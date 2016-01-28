@@ -5,6 +5,7 @@
 
 
 (import argparse re keyword)
+(import ct-addon.hy)
 
 (defclass CodeObject []
           "A queriable object of a source code file.
