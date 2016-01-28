@@ -12,9 +12,10 @@
 ; Get a test output for assertion, eg. resulting XML. Run through BS for validity.
 ;(defn -test- [-code- -expected-]
 
-; Get code for handling lines matching given expression. Test code by calling with line and asserting.
-(defn -domize- [-line- -regex-] (cond [(.search re "[ ]*[#][!].+" line) (setv ret (+ "<hashbang>" (get (.findall re "[ ]*[#][!][ ]*(.+)") 0) "</hashbang>"))]))
-; comments regex (doesn't match hashbang): [ ]*[#][^!].+
+; Get code for handling lines matching given expression and type. Test code by calling with line and asserting.
+(defn -domize- [-line- -regex- -type-] (cond [(and (.search re (+ ".*" -type- ".*") "Python Bash Hy Perl") (.search re "\s*[#][!].+" -line-)) (setv ret (+ "<hashbang>" (get (.findall re "\s*[#][!]\s*(.+)") 0) "</hashbang>"))]))
+; comments regex (doesn't match hashbang): \s*[#][^!].+
+; blank line (starts & ends with 0+ non-ws): ^\s*$
 
 
 

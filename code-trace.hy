@@ -4,17 +4,25 @@
 ; created 16-01-24
 
 
-(import argparse re keyword)
-(import ct-addon.hy)
+(import argparse re keyword [bs4 [BeautifulSoup]])
 
 (defclass CodeObject []
           "A queriable object of a source code file.
           16-01-27"
           
           [[name None]
+           [type "unknown"]
+           [original []]
            [contents None]
            [get-re (fn [self line] (if (.search re (setv regex (raw-input "Enter regex for: " line)) line) regex (.get-re self line)))]  ; only continue with a valid regex
            ; [get-mngr <code to manage newly found line>]
+           [set-name (fn [self name] (setv (. self name) name))]
+           [add-code (fn [self original] (setv (. self original) original) (.set-contents self (.code-tidy self original)))]
+           [code-tidy (fn [self code] code)]  ; tidy stub
+           [set-contents (fn [self contents] (setv (. self contents) contents) (.make-soup self))]
+           [make-soup (fn [self] (setv soup (BeautifulSoup "<CodeObject/>" "xml"))
+                          (.append (. soup CodeObject) (.new-tag soup "Type"))
+                          (print "Soup content: " (. soup contents)))]
            ])
 
 (defclass JavaObject [CodeObject]
@@ -23,10 +31,6 @@
           
           [[type "Java"]
            [keywords "abstract   continue   for          new         switch assert     default    if           package     synchronized boolean    do         goto         private     this break      double     implements   protected   throw byte       else       import       public      throws case       enum       instanceof   return      transient catch      extends    int          short       try char       final      interface    static      void class      finally    long         strictfp    volatile const      float      native       super       while"]
-           [set-name (fn [self name] (setv (. self name) name))]
-           [set-contents (fn [self contents]
-                             (do (setv (. self contents) contents)
-                                 (make-dom contents)))]
            ])
 
 (defclass PythonObject [CodeObject]
@@ -34,8 +38,8 @@
           16-01-27"
           
           [[type "Python"]
-           [--init-- (fn [self] (setv (. self keywords) (get-keywords self)) None)]  ; watch for error
-           [get-keywords (fn [self] (for [word (. keyword kwlst)] (setv keywords (+ keywords word " "))))]
+           [--init-- (fn [self] (.get-keywords self) None)]
+           [get-keywords (fn [self] (setv keywords "") (for [word (. keyword kwlist)] (setv keywords (+ keywords word " "))) (setv (. self keywords) keywords))]
            ])
 
 (setv code None)  ; dict of CodeObjects (name : obj)
@@ -58,13 +62,13 @@
       (print "Entry point is:" file)
       file)
 
-(defn file-type [file]
+(defn get-co [file]
       "Return the file type
       16-01-27"
       ;(print "Assessing file type...")
-      (cond [(.search re ".+[.]hy$" file) "Hy"]
-            [(.search re ".+[.]py$" file) "Python"]
-            [True "unknown"])
+      (cond ;[(.search re ".+[.]hy$" file) (HyObject)]
+            [(.search re ".+[.]py$" file) (PythonObject)]
+            [True (CodeObject)])
       )
 
 (defn code-tidy [lines type]
@@ -75,14 +79,13 @@
 (defn process-code [file]
       "Create a code object from the given file and add it to the dictionary
       16-01-27"
-      (print "Processing " file "...")
-      (setv co (CodeObject))
-      (setv (. co name) file)
-      (setv (. co type ) (file-type file))
+      (print (+ "Processing " file "..."))
+      (setv co (get-co file))  ; get a code object for the appropriate file type
+      (print "Detected type is" (. co type))
+      (.set-name co file)
       (setv lines (open file))
-      (setv (. co original) lines)  ; original file content
-      (setv lines (code-tidy lines (. co type)))
-      (setv (. co contents) lines)  ; tidied version
+      (.add-code co lines)  ; original file content
+      (setv lines (. co contents))  ; tidied version
       (for [line lines] 
            (print (.rstrip line)))
       )
