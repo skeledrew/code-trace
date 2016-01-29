@@ -4,7 +4,7 @@
 ; created 16-01-24
 
 
-(import argparse re keyword [bs4 [BeautifulSoup]])
+(import argparse re keyword [bs4 [BeautifulSoup]] os sys)
 
 (defclass CodeObject []
           "A queriable object of a source code file.
@@ -23,10 +23,12 @@
            [code-tidy (fn [self code] code)]  ; tidy stub
            [set-contents (fn [self contents] (setv (. self contents) contents) (.make-soup self))]
            [make-soup (fn [self] (setv soup (BeautifulSoup "<CodeObject/>" "xml"))
-                          ;(.append (. soup CodeObject) (.new-tag soup "Type"))
                           (assoc (. soup CodeObject) "name" (. self name) "type" "unknown")
                           (setv processors (load-processors processor-file-name))  ; load dynamic processing code
+                          (setv domize-code "")
+                          ;(for [processor processors] (if (.search re ".*-domize- .*" processor) (do (setv domize-code (.rstrip processor)) (eval domize-code) (break))))
                           (for [line (. self contents)]
+                               ;(.append (. soup CodeObject) (-domize- line "" (. self type)))
                                (print (.rstrip line)))
                           (print "\nSoup content: " (get (. soup contents) 0)))]
            ])
@@ -60,10 +62,11 @@
       (setv lines (open file))
       (setv ct-addon lines)
       (setv code-lines [])
+      (print "DBG:" file "\n" lines "\n")
       (for [line lines]
            (if (.search re ".*---STOP---.*" line) (break))
            ;(if (.search re "\s*(import.*" line) (continue))  ; skip import statements
-           (if (.search re "^[ ]*[(][^ ]+" line) (.append code-lines (.rstrip line))))
+           (if (.search re "^[ ]*[(][^ ]+" line) (.append code-lines (.rstrip line))))  ; BUG: Seems Hy doesn't like brackets & parens in strings...
       code-lines)
 
 (defn parse-args []
@@ -110,6 +113,19 @@
       ;     (print (.rstrip line)))
       )
 
+(defn mem-file [text]
+      "A workaround to help get eval to process a string by returning the given text in a pipe
+      https://docs.python.org/2/library/os.html#os.read
+      http://www.tutorialspoint.com/python/os_pipe.htm
+      https://docs.python.org/2/library/os.html#os.fork
+      http://www.tutorialspoint.com/python/file_read.htm
+      16-01-29"
+      (setv my-pipe (.pipe os))
+      (setv pid (.fork os))
+      (if pid (do (.close os (get my-pipe 1)) (setv r (.fdopen os (get my-pipe 0))) (setv str (.read r)) (print "Found:" str) r)
+          (do (.close os (get my-pipe 0)) (setv w (.fdopen os (get my-pipe 1) "w")) (.write w text) (.close w) (.exit sys 0)))
+      )
+
 (defn main []
       "Main routine
       16-01-24, -27"
@@ -120,3 +136,7 @@
 
 (main)
 (print "\n\nDONE!!!")
+
+(mem-file "target string")
+(eval (read (mem-file "(print \"Holla!\")")))
+(print "Really done now.")
