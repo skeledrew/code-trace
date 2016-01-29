@@ -12,8 +12,10 @@
           
           [[name None]
            [type "unknown"]
-           [original []]
-           [contents None]
+           [keywords ""]
+           [original []]  ; original code
+           [contents ""]  ; tidied code
+           [soup None]  ; code in soup object
            [get-re (fn [self line] (if (.search re (setv regex (raw-input "Enter regex for: " line)) line) regex (.get-re self line)))]  ; only continue with a valid regex
            ; [get-mngr <code to manage newly found line>]
            [set-name (fn [self name] (setv (. self name) name))]
@@ -21,8 +23,12 @@
            [code-tidy (fn [self code] code)]  ; tidy stub
            [set-contents (fn [self contents] (setv (. self contents) contents) (.make-soup self))]
            [make-soup (fn [self] (setv soup (BeautifulSoup "<CodeObject/>" "xml"))
-                          (.append (. soup CodeObject) (.new-tag soup "Type"))
-                          (print "Soup content: " (. soup contents)))]
+                          ;(.append (. soup CodeObject) (.new-tag soup "Type"))
+                          (assoc (. soup CodeObject) "name" (. self name) "type" "unknown")
+                          (setv processors (load-processors processor-file-name))  ; load dynamic processing code
+                          (for [line (. self contents)]
+                               (print (.rstrip line)))
+                          (print "\nSoup content: " (get (. soup contents) 0)))]
            ])
 
 (defclass JavaObject [CodeObject]
@@ -43,8 +49,22 @@
            ])
 
 (setv code None)  ; dict of CodeObjects (name : obj)
+(setv processor-file-name "ct-addon.hy")
+(setv ct-addon "")
 (setv version "1.0")
 (setv desc (+ "Dry run, simulate input, and log output and run state for source code (version " version ")"))
+
+(defn load-processors [file]
+      "Load expressions to get the regex, test and operation
+      16-01-28"
+      (setv lines (open file))
+      (setv ct-addon lines)
+      (setv code-lines [])
+      (for [line lines]
+           (if (.search re ".*---STOP---.*" line) (break))
+           ;(if (.search re "\s*(import.*" line) (continue))  ; skip import statements
+           (if (.search re "^[ ]*[(][^ ]+" line) (.append code-lines (.rstrip line))))
+      code-lines)
 
 (defn parse-args []
       "Process file or directory name from command line
@@ -86,8 +106,8 @@
       (setv lines (open file))
       (.add-code co lines)  ; original file content
       (setv lines (. co contents))  ; tidied version
-      (for [line lines] 
-           (print (.rstrip line)))
+      ;(for [line lines] 
+      ;     (print (.rstrip line)))
       )
 
 (defn main []
