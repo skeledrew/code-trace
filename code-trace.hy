@@ -25,7 +25,38 @@ Notes:
 --- Gonna try either using the Hy core to do real manipulation or have exec-code read and execute the entire script as the addon, which should fix scope issues.
 "
 
-(import argparse re keyword [bs4 [BeautifulSoup]] os sys io inspect)
+(import argparse re keyword [bs4 [BeautifulSoup]] os sys io inspect copy)
+
+(defn exec-code [code]
+      "Evaluates the given string
+      Doesn't work for function definitions. Prob a scope issue
+      16-01-29, -31"
+      (exec (disassemble code true))  ; execute Python disassembled from Hy string
+      (setv loc (locals))  ; get a copy of the current local namespace - see http://www.diveintopython.net/html_processing/locals_and_globals.html
+      (setv rets {})
+      (for [item loc] (if-not (or (= item loc) (= item "code")) (assoc rets item (get loc item))))  ; puts anything created from exec in a dictionary
+      rets)  ; return the dictionary
+
+(defn add-global [globs]
+      "Add the items in a given dictionary to the global namespace
+      16-01-31"
+      (for [item globs] (assoc (globals) item (get globs item))))
+
+(exec-code '(print "Code execution function works!"))  ; ok
+(add-global (exec-code '(defn -testfunc- [] (print "Self-execution works!"))))
+(exec "def a(x):\n  return x+1")
+(print (a 5))
+;(exec (disassemble '(defn -testfunc- [] (print "Self-execution works!")) true))  ; ok
+;(setv dic (.copy copy (locals)))
+;(for [item dic] (if (or (.search re ".*test.*" (get item 0)) (.search re ".*test.*" (get item 1))) (print item)))
+;(for [item dic] (print item))
+(-testfunc-)  ; FINALLY!!! Works with exec-code on 160131 at 2154!
+(setv testfunc [])
+(.append testfunc '(defn -testfunc- [] (print "Self-execution works!")))
+(.append testfunc '(-testfunc-))
+;(for [line testfunc] (exec-code line))
+
+; ---STOP--- just for simple testing
 
 (defclass CodeObject3 []
           "A queriable object of a source code file.
@@ -117,8 +148,8 @@ Notes:
            ])
 
 (setv code-dict None)  ; dict of CodeObjects (name : obj)
-(setv processor-file-name "ct-addon.hy")
-(setv ct-addon "")
+(setv processor-file-name "ctaddon.hy")
+(setv ctaddon "")
 (setv version "1.0")
 (setv desc (+ "Dry run, simulate input, and log output and run state for source code (version " version ")"))
 
@@ -135,22 +166,17 @@ Notes:
           (do (.close os (get my-pipe 0)) (setv w (.fdopen os (get my-pipe 1) "w")) (.write w text) (.close w) (.exit sys 0)))
       )
 
-(defn get-attr [co attrib]
-      "Gets an attribute from the soup in a code object
-      16-01-31"
-      (exec-code (+ "(. " co " soup " attrib ")"))
-      )
-
-(defn exec-code [str]
-      "Evaluates the given string
-      16-01-29"
-      (eval (apply read [] {"from_file" (.StringIO io str)})))
+;(defn get-attr [co attrib]
+;      "Gets an attribute from the soup in a code object
+;      16-01-31"
+;      (exec-code (+ "(. " co " soup " attrib ")"))
+;      )
 
 (defn load-processors [file]
       "Load expressions to get the regex, test and operation
       16-01-28"
       (setv lines (open file))
-      (setv ct-addon lines)
+      (setv ctaddon lines)
       (setv code-lines [])
       ;(print "DEBUG:" file "\n" lines "\n")
       (for [line lines]
@@ -212,7 +238,7 @@ Notes:
       (setv lines (open name))
       (setv code-lines [])
       (for [line lines]
-           ;(if (.search re ".*---STOP---.*" line) (break))
+           (if (.search re ".*---STOP---.*" line) (break))
            ;(if (.search re "\s*(import.*" line) (continue))  ; skip import statements
            (if (.search re "^[ ]*[(][^ ]+" line) (.append code-lines (.rstrip line))))
       (for [line code-lines] (print line))
